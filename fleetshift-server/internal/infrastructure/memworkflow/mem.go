@@ -180,12 +180,15 @@ func (w *orchestrationWorkflow) Start(ctx context.Context, fulfillmentID domain.
 	done := make(chan orchResult, 1)
 
 	go func() {
-		defer func() {
+		cleanup := func() {
 			w.registry.removeInstance(fulfillmentID)
 			w.mu.Lock()
 			delete(w.running, fulfillmentID)
 			w.mu.Unlock()
+		}
+		defer func() {
 			if r := recover(); r != nil {
+				cleanup()
 				done <- orchResult{err: fmt.Errorf("workflow panicked: %v", r)}
 			}
 		}()
@@ -229,11 +232,7 @@ func (w *orchestrationWorkflow) Start(ctx context.Context, fulfillmentID domain.
 				id = can.Input.(domain.FulfillmentID)
 				continue
 			}
-			w.registry.removeInstance(fulfillmentID)
-			w.mu.Lock()
-			delete(w.running, fulfillmentID)
-			w.mu.Unlock()
-
+			cleanup()
 			done <- orchResult{val: val, err: err}
 			return
 		}
