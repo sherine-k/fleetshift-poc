@@ -229,6 +229,11 @@ func (w *orchestrationWorkflow) Start(ctx context.Context, fulfillmentID domain.
 				id = can.Input.(domain.FulfillmentID)
 				continue
 			}
+			w.registry.removeInstance(fulfillmentID)
+			w.mu.Lock()
+			delete(w.running, fulfillmentID)
+			w.mu.Unlock()
+
 			done <- orchResult{val: val, err: err}
 			return
 		}
