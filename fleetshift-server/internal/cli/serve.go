@@ -506,6 +506,9 @@ func runServe(ctx context.Context, f *serveFlags) error {
 	if err := pb.RegisterSignerEnrollmentServiceHandlerFromEndpoint(ctx, gwMux, f.grpcAddr, gwOpts); err != nil {
 		return fmt.Errorf("register signer enrollment gateway: %w", err)
 	}
+	if err := pb.RegisterClusterServiceHandlerFromEndpoint(ctx, gwMux, f.grpcAddr, gwOpts); err != nil {
+		return fmt.Errorf("register cluster gateway: %w", err)
+	}
 
 	// Dynamic managed resource HTTP routes are registered directly on
 	// topMux by the SchemaActivator. Go 1.22+ ServeMux uses
@@ -581,6 +584,16 @@ func runServe(ctx context.Context, f *serveFlags) error {
 		}
 	}
 
+	// Register ClusterService now that addonMgr is available
+	targetSvc := &application.TargetService{Store: store}
+	clusterSvc := &application.ClusterService{
+		Targets:   targetSvc,
+		Providers: addonMgr,
+	}
+	pb.RegisterClusterServiceServer(grpcServer, &transportgrpc.ClusterServer{
+		Clusters: clusterSvc,
+	})
+
 	// --- start ---
 
 	errCh := make(chan error, 2)
@@ -649,7 +662,8 @@ func runServe(ctx context.Context, f *serveFlags) error {
 				Properties:            activeTarget.TargetProperties(),
 				AcceptedResourceTypes: []domain.ResourceType{gcphcpaddon.ClusterResourceType, domain.TrustBundleResourceType},
 			}},
-			Schemas: []domain.ManagedResourceSchema{gcphcpaddon.Schema(targetID)},
+			Schemas:       []domain.ManagedResourceSchema{gcphcpaddon.Schema(targetID)},
+			ClusterAccess: gcphcpaddon.NewClusterAccess(gcphcpCfg.Gateway),
 		}); err != nil {
 			return fmt.Errorf("connect gcphcp addon: %w", err)
 		}
