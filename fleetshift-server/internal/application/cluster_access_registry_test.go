@@ -3,23 +3,22 @@ package application_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/fleetshift/fleetshift-poc/fleetshift-server/internal/application"
 	"github.com/fleetshift/fleetshift-poc/fleetshift-server/internal/domain"
 )
 
-type fakeClusterAccessProvider struct {
-	token string
-}
-
-func (f *fakeClusterAccessProvider) MintCredential(_ context.Context, _ string, _ domain.TargetInfo) (*domain.ClusterCredential, error) {
-	return &domain.ClusterCredential{Token: f.token, Expiration: time.Now().Add(time.Hour)}, nil
+func fixedTokenProvider(token string) *stubClusterAccessProvider {
+	return &stubClusterAccessProvider{
+		mintFunc: func(_ context.Context, _ string, _ domain.TargetInfo) (*domain.ClusterCredential, error) {
+			return &domain.ClusterCredential{Token: token}, nil
+		},
+	}
 }
 
 func TestClusterAccessRegistry_RegisterAndLookup(t *testing.T) {
 	reg := application.NewClusterAccessRegistry()
-	provider := &fakeClusterAccessProvider{token: "tok-a"}
+	provider := fixedTokenProvider("tok-a")
 
 	reg.Register("gcphcp", provider)
 
@@ -40,8 +39,8 @@ func TestClusterAccessRegistry_LookupMissingReturnsNil(t *testing.T) {
 
 func TestClusterAccessRegistry_RegisterOverwrites(t *testing.T) {
 	reg := application.NewClusterAccessRegistry()
-	first := &fakeClusterAccessProvider{token: "first"}
-	second := &fakeClusterAccessProvider{token: "second"}
+	first := fixedTokenProvider("first")
+	second := fixedTokenProvider("second")
 
 	reg.Register("gcphcp", first)
 	reg.Register("gcphcp", second)
@@ -54,7 +53,7 @@ func TestClusterAccessRegistry_RegisterOverwrites(t *testing.T) {
 
 func TestClusterAccessRegistry_Deregister(t *testing.T) {
 	reg := application.NewClusterAccessRegistry()
-	reg.Register("gcphcp", &fakeClusterAccessProvider{token: "tok"})
+	reg.Register("gcphcp", fixedTokenProvider("tok"))
 
 	reg.Deregister("gcphcp")
 
@@ -71,8 +70,8 @@ func TestClusterAccessRegistry_DeregisterMissingIsNoop(t *testing.T) {
 
 func TestClusterAccessRegistry_MultipleTypes(t *testing.T) {
 	reg := application.NewClusterAccessRegistry()
-	a := &fakeClusterAccessProvider{token: "a"}
-	b := &fakeClusterAccessProvider{token: "b"}
+	a := fixedTokenProvider("a")
+	b := fixedTokenProvider("b")
 
 	reg.Register("gcphcp", a)
 	reg.Register("kind", b)

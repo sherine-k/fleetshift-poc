@@ -43,7 +43,7 @@ func TestClusterAccess_MintCredential_Success(t *testing.T) {
 	ca := gcphcp.NewClusterAccess(gcphcp.GatewayConfig{
 		URL:      "https://gateway.example.com",
 		Audience: "gateway-audience",
-	})
+	}, gcphcp.WithEndpoints(sts.URL, iam.URL))
 
 	target := domain.TargetInfo{
 		ID:   "gcphcp-target",
@@ -55,8 +55,6 @@ func TestClusterAccess_MintCredential_Success(t *testing.T) {
 			"broker_sa_email":    "broker@my-project.iam.gserviceaccount.com",
 		},
 	}
-
-	ca.SetTestEndpoints(sts.URL, iam.URL)
 
 	cred, err := ca.MintCredential(context.Background(), "caller-jwt", target)
 	if err != nil {
@@ -101,7 +99,7 @@ func TestClusterAccess_MintCredential_STSFailure(t *testing.T) {
 
 	ca := gcphcp.NewClusterAccess(gcphcp.GatewayConfig{
 		Audience: "gateway-audience",
-	})
+	}, gcphcp.WithEndpoints(sts.URL, "http://unused"))
 
 	target := domain.TargetInfo{
 		ID:   "gcphcp-target",
@@ -113,8 +111,6 @@ func TestClusterAccess_MintCredential_STSFailure(t *testing.T) {
 			"broker_sa_email":    "broker@my-project.iam.gserviceaccount.com",
 		},
 	}
-
-	ca.SetTestEndpoints(sts.URL, "http://unused")
 
 	_, err := ca.MintCredential(context.Background(), "caller-jwt", target)
 	if err == nil {

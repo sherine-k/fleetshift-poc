@@ -832,14 +832,9 @@ func TestAddonManager_ConnectTypeDefAlreadyExistsIsIdempotent(t *testing.T) {
 	}
 }
 
-// stubClusterAccessProv satisfies [domain.ClusterAccessProvider] for
-// addon manager lifecycle tests.
-type stubClusterAccessProv struct {
-	called bool
-}
+type stubClusterAccessProv struct{}
 
 func (s *stubClusterAccessProv) MintCredential(_ context.Context, _ string, _ domain.TargetInfo) (*domain.ClusterCredential, error) {
-	s.called = true
 	return &domain.ClusterCredential{}, nil
 }
 

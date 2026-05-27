@@ -8,20 +8,27 @@ import (
 	"github.com/fleetshift/fleetshift-poc/fleetshift-server/internal/domain"
 )
 
-// ClusterAccess implements domain.ClusterAccessProvider for gcphcp targets.
+type ClusterAccessOption func(*ClusterAccess)
+
+func WithEndpoints(sts, iam string) ClusterAccessOption {
+	return func(ca *ClusterAccess) {
+		ca.stsEndpoint = sts
+		ca.iamEndpoint = iam
+	}
+}
+
 type ClusterAccess struct {
 	gateway     GatewayConfig
 	stsEndpoint string
 	iamEndpoint string
 }
 
-func NewClusterAccess(gateway GatewayConfig) *ClusterAccess {
-	return &ClusterAccess{gateway: gateway}
-}
-
-func (ca *ClusterAccess) SetTestEndpoints(sts, iam string) {
-	ca.stsEndpoint = sts
-	ca.iamEndpoint = iam
+func NewClusterAccess(gateway GatewayConfig, opts ...ClusterAccessOption) *ClusterAccess {
+	ca := &ClusterAccess{gateway: gateway}
+	for _, o := range opts {
+		o(ca)
+	}
+	return ca
 }
 
 func (ca *ClusterAccess) MintCredential(ctx context.Context, callerToken string, target domain.TargetInfo) (*domain.ClusterCredential, error) {

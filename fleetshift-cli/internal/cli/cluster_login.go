@@ -11,8 +11,6 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
-var connectionFlags = []string{"server", "server-tls", "server-ca-file", "server-insecure"}
-
 func newClusterLoginCmd(ctx *cmdContext) *cobra.Command {
 	var kubeconfigPath string
 	setCurrentContext := true
@@ -33,18 +31,7 @@ func newClusterLoginCmd(ctx *cmdContext) *cobra.Command {
 				return fmt.Errorf("failed to get cluster info: %w", err)
 			}
 
-			execArgs := []string{"cluster", "token", resourceID}
-			root := cmd.Root()
-			for _, name := range connectionFlags {
-				f := root.PersistentFlags().Lookup(name)
-				if f != nil && f.Changed {
-					if f.Value.Type() == "bool" {
-						execArgs = append(execArgs, "--"+f.Name)
-					} else {
-						execArgs = append(execArgs, "--"+f.Name, f.Value.String())
-					}
-				}
-			}
+			execArgs := buildExecArgs(cmd, resourceID)
 
 			cluster := &clientcmdapi.Cluster{
 				Server: resp.GetEndpoint(),
@@ -67,39 +54,10 @@ func newClusterLoginCmd(ctx *cmdContext) *cobra.Command {
 				AuthInfo: contextName,
 			}
 
-			kcPath := kubeconfigPath
-			if kcPath == "" {
-				kcPath = os.Getenv("KUBECONFIG")
-			}
-			if kcPath == "" {
-				home, err := os.UserHomeDir()
-				if err != nil {
-					return fmt.Errorf("cannot determine home directory: %w", err)
-				}
-				kcPath = filepath.Join(home, ".kube", "config")
-			}
+			kcPath := resolveKubeconfigPath(kubeconfigPath)
 
-			existingConfig, err := clientcmd.LoadFromFile(kcPath)
-			if err != nil {
-				if !os.IsNotExist(err) {
-					return fmt.Errorf("cannot read kubeconfig: %w", err)
-				}
-				existingConfig = clientcmdapi.NewConfig()
-			}
-
-			existingConfig.Clusters[contextName] = cluster
-			existingConfig.AuthInfos[contextName] = authInfo
-			existingConfig.Contexts[contextName] = newContext
-			if setCurrentContext {
-				existingConfig.CurrentContext = contextName
-			}
-
-			if err := os.MkdirAll(filepath.Dir(kcPath), 0o755); err != nil {
-				return fmt.Errorf("cannot create kubeconfig directory: %w", err)
-			}
-
-			if err := clientcmd.WriteToFile(*existingConfig, kcPath); err != nil {
-				return fmt.Errorf("cannot write kubeconfig: %w", err)
+			if err := mergeIntoKubeconfig(kcPath, contextName, cluster, authInfo, newContext, setCurrentContext); err != nil {
+				return err
 			}
 
 			fmt.Fprintf(cmd.OutOrStdout(),
@@ -113,4 +71,59 @@ func newClusterLoginCmd(ctx *cmdContext) *cobra.Command {
 	cmd.Flags().BoolVar(&setCurrentContext, "set-current-context", true, "set as current context")
 
 	return cmd
+}
+
+func buildExecArgs(cmd *cobra.Command, resourceID string) []string {
+	connectionFlags := []string{"server", "server-tls", "server-ca-file", "server-insecure"}
+
+	execArgs := []string{"cluster", "token", resourceID}
+	root := cmd.Root()
+	for _, name := range connectionFlags {
+		f := root.PersistentFlags().Lookup(name)
+		if f != nil && f.Changed {
+			if f.Value.Type() == "bool" {
+				execArgs = append(execArgs, "--"+f.Name)
+			} else {
+				execArgs = append(execArgs, "--"+f.Name, f.Value.String())
+			}
+		}
+	}
+	return execArgs
+}
+
+func resolveKubeconfigPath(explicit string) string {
+	if explicit != "" {
+		return explicit
+	}
+	if env := os.Getenv("KUBECONFIG"); env != "" {
+		return env
+	}
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".kube", "config")
+}
+
+func mergeIntoKubeconfig(path, contextName string, cluster *clientcmdapi.Cluster, authInfo *clientcmdapi.AuthInfo, ctx *clientcmdapi.Context, setCurrent bool) error {
+	existing, err := clientcmd.LoadFromFile(path)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("cannot read kubeconfig: %w", err)
+		}
+		existing = clientcmdapi.NewConfig()
+	}
+
+	existing.Clusters[contextName] = cluster
+	existing.AuthInfos[contextName] = authInfo
+	existing.Contexts[contextName] = ctx
+	if setCurrent {
+		existing.CurrentContext = contextName
+	}
+
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("cannot create kubeconfig directory: %w", err)
+	}
+
+	if err := clientcmd.WriteToFile(*existing, path); err != nil {
+		return fmt.Errorf("cannot write kubeconfig: %w", err)
+	}
+	return nil
 }
