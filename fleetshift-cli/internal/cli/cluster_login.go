@@ -82,7 +82,7 @@ func buildExecArgs(cmd *cobra.Command, resourceID string) []string {
 		f := root.PersistentFlags().Lookup(name)
 		if f != nil && f.Changed {
 			if f.Value.Type() == "bool" {
-				execArgs = append(execArgs, "--"+f.Name)
+				execArgs = append(execArgs, "--"+f.Name+"="+f.Value.String())
 			} else {
 				execArgs = append(execArgs, "--"+f.Name, f.Value.String())
 			}

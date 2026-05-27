@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/fleetshift/fleetshift-poc/fleetshift-server/internal/domain"
@@ -18,7 +19,10 @@ func (s *ClusterService) resolveTarget(ctx context.Context, resourceID string) (
 	targetID := domain.TargetID("k8s-" + resourceID)
 	target, err := s.Targets.Get(ctx, targetID)
 	if err != nil {
-		return domain.TargetInfo{}, fmt.Errorf("cluster %q: %w", resourceID, domain.ErrNotFound)
+		if errors.Is(err, domain.ErrNotFound) {
+			return domain.TargetInfo{}, fmt.Errorf("cluster %q: %w", resourceID, domain.ErrNotFound)
+		}
+		return domain.TargetInfo{}, fmt.Errorf("cluster %q: resolve target: %w", resourceID, err)
 	}
 	return target, nil
 }

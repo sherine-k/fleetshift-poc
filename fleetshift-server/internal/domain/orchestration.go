@@ -625,10 +625,11 @@ func (s *OrchestrationWorkflowSpec) ProcessDeliveryOutputs() Activity[DeliveryOu
 			}
 
 			// Derive provisioning target ID from DeliveryID format "fulfillmentID:targetID"
-			var provTargetID TargetID
-			if parts := strings.SplitN(string(in.DeliveryID), ":", 2); len(parts) == 2 {
-				provTargetID = TargetID(parts[1])
+			parts := strings.SplitN(string(in.DeliveryID), ":", 2)
+			if len(parts) != 2 || parts[1] == "" {
+				return struct{}{}, fmt.Errorf("malformed delivery id %q: expected fulfillmentID:targetID", in.DeliveryID)
 			}
+			provTargetID := TargetID(parts[1])
 
 			if err := tx.Targets().CreateOrUpdate(ctx, TargetInfo{
 				ID:                    pt.ID,

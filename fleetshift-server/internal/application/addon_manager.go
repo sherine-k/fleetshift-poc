@@ -322,6 +322,14 @@ func (m *AddonManager) Disable(ctx context.Context, addonID domain.AddonID) erro
 		rec.agent = nil
 	}
 
+	if m.clusterAccess != nil {
+		for _, cap := range rec.addon.Capabilities {
+			if ca, ok := cap.(domain.ClusterAccessCapability); ok {
+				m.clusterAccess.Deregister(ca.TargetType)
+			}
+		}
+	}
+
 	for rt := range rec.schemaHandles {
 		m.deactivateSchema(ctx, rec, rt)
 	}
